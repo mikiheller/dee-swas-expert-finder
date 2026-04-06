@@ -10,32 +10,58 @@ export interface Expert {
   typeLabel: string;
   priority: string;
   institution: string;
-  expertise: string;
-  paperTitle?: string;
-  journal?: string;
+  country: string;
+  specialty: string;
+  researchTopic: string;
+  emailStatus: string;
 }
 
 const TYPE_CONFIG: Record<string, { label: string; color: string; bg: string }> =
   {
-    advisory_board: {
-      label: "Advisory Board",
-      color: "text-amber-800",
-      bg: "bg-amber-50 border-amber-200",
+    eses_treatment: {
+      label: "ESES Treatment",
+      color: "text-rose-800",
+      bg: "bg-rose-50 border-rose-200",
     },
     epileptologist: {
       label: "Epileptologist",
       color: "text-blue-800",
       bg: "bg-blue-50 border-blue-200",
     },
-    neurogeneticist: {
-      label: "Neurogeneticist",
+    epilepsy_surgeon: {
+      label: "Epilepsy Surgeon",
+      color: "text-indigo-800",
+      bg: "bg-indigo-50 border-indigo-200",
+    },
+    etiology_researcher: {
+      label: "Etiology Researcher",
+      color: "text-emerald-800",
+      bg: "bg-emerald-50 border-emerald-200",
+    },
+    eeg_genetic_analysis: {
+      label: "EEG / Genetics",
       color: "text-purple-800",
       bg: "bg-purple-50 border-purple-200",
     },
     researcher: {
       label: "Researcher",
-      color: "text-emerald-800",
-      bg: "bg-emerald-50 border-emerald-200",
+      color: "text-teal-800",
+      bg: "bg-teal-50 border-teal-200",
+    },
+    clinical_trial_pi: {
+      label: "Clinical Trial PI",
+      color: "text-orange-800",
+      bg: "bg-orange-50 border-orange-200",
+    },
+    neuropsychologist: {
+      label: "Neuropsychologist",
+      color: "text-amber-800",
+      bg: "bg-amber-50 border-amber-200",
+    },
+    cognitive_rehab: {
+      label: "Cognitive Rehab",
+      color: "text-cyan-800",
+      bg: "bg-cyan-50 border-cyan-200",
     },
   };
 
@@ -54,7 +80,20 @@ function TypeBadge({ type }: { type: string }) {
   );
 }
 
-type SortKey = "name" | "institution" | "type" | "priority";
+function EmailStatus({ status }: { status: string }) {
+  const config: Record<string, { label: string; className: string }> = {
+    verified_institutional: { label: "Verified", className: "text-emerald-600" },
+    verified_personal: { label: "Personal", className: "text-amber-600" },
+    likely_valid: { label: "Likely valid", className: "text-blue-600" },
+    unverified: { label: "Unverified", className: "text-zinc-400" },
+    unverified_personal: { label: "Unverified", className: "text-zinc-400" },
+    not_found: { label: "Not found", className: "text-zinc-300" },
+  };
+  const c = config[status] ?? { label: status, className: "text-zinc-400" };
+  return <span className={`text-xs ${c.className}`}>{c.label}</span>;
+}
+
+type SortKey = "name" | "institution" | "country" | "type" | "priority";
 type SortDir = "asc" | "desc";
 
 function SortHeader({
@@ -77,7 +116,13 @@ function SortHeader({
       className="group inline-flex items-center gap-1 font-semibold cursor-pointer"
     >
       {label}
-      <span className={active ? "text-zinc-700" : "text-zinc-300 group-hover:text-zinc-400"}>
+      <span
+        className={
+          active
+            ? "text-zinc-700"
+            : "text-zinc-300 group-hover:text-zinc-400"
+        }
+      >
         {active && currentDir === "desc" ? "\u2193" : "\u2191"}
       </span>
     </button>
@@ -92,6 +137,7 @@ export default function ExpertDirectory({
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [countryFilter, setCountryFilter] = useState<string>("all");
   const [sortKey, setSortKey] = useState<SortKey>("priority");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -102,6 +148,14 @@ export default function ExpertDirectory({
       counts[e.type] = (counts[e.type] || 0) + 1;
     }
     return counts;
+  }, [experts]);
+
+  const countries = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const e of experts) {
+      if (e.country) counts[e.country] = (counts[e.country] || 0) + 1;
+    }
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
   }, [experts]);
 
   const handleSort = (key: SortKey) => {
@@ -118,13 +172,15 @@ export default function ExpertDirectory({
       if (typeFilter !== "all" && e.type !== typeFilter) return false;
       if (priorityFilter !== "all" && e.priority !== priorityFilter)
         return false;
+      if (countryFilter !== "all" && e.country !== countryFilter) return false;
       if (search) {
         const q = search.toLowerCase();
         return (
           e.name.toLowerCase().includes(q) ||
           e.institution.toLowerCase().includes(q) ||
-          e.expertise.toLowerCase().includes(q) ||
-          (e.paperTitle?.toLowerCase().includes(q) ?? false)
+          e.specialty.toLowerCase().includes(q) ||
+          e.researchTopic.toLowerCase().includes(q) ||
+          e.country.toLowerCase().includes(q)
         );
       }
       return true;
@@ -132,10 +188,15 @@ export default function ExpertDirectory({
 
     const priorityOrder: Record<string, number> = { high: 0, normal: 1 };
     const typeOrder: Record<string, number> = {
-      advisory_board: 0,
+      eses_treatment: 0,
       epileptologist: 1,
-      neurogeneticist: 2,
-      researcher: 3,
+      epilepsy_surgeon: 2,
+      clinical_trial_pi: 3,
+      etiology_researcher: 4,
+      eeg_genetic_analysis: 5,
+      researcher: 6,
+      neuropsychologist: 7,
+      cognitive_rehab: 8,
     };
 
     list.sort((a, b) => {
@@ -147,18 +208,24 @@ export default function ExpertDirectory({
         case "institution":
           cmp = a.institution.localeCompare(b.institution);
           break;
+        case "country":
+          cmp = a.country.localeCompare(b.country);
+          break;
         case "type":
-          cmp = (typeOrder[a.type] ?? 99) - (typeOrder[b.type] ?? 99);
+          cmp =
+            (typeOrder[a.type] ?? 99) - (typeOrder[b.type] ?? 99);
           break;
         case "priority":
-          cmp = (priorityOrder[a.priority] ?? 99) - (priorityOrder[b.priority] ?? 99);
+          cmp =
+            (priorityOrder[a.priority] ?? 99) -
+            (priorityOrder[b.priority] ?? 99);
           break;
       }
       return sortDir === "asc" ? cmp : -cmp;
     });
 
     return list;
-  }, [experts, search, typeFilter, priorityFilter, sortKey, sortDir]);
+  }, [experts, search, typeFilter, priorityFilter, countryFilter, sortKey, sortDir]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -166,15 +233,15 @@ export default function ExpertDirectory({
         <h1 className="text-3xl font-bold tracking-tight text-[var(--foreground)] sm:text-4xl">
           DEE-SWAS Expert Finder
         </h1>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--muted)]">
-          {experts.length} specialists in DEE-SWAS, SYNGAP1, and ESES/CSWS.
-          Click any row to see details.
+        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[var(--muted)]">
+          {experts.length} specialists across {countries.length} countries.
+          Click any row to see full details.
         </p>
       </header>
 
       {/* Filters */}
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative flex-1">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
+        <div className="relative flex-1 min-w-[200px]">
           <svg
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"
             fill="none"
@@ -190,25 +257,27 @@ export default function ExpertDirectory({
           </svg>
           <input
             type="text"
-            placeholder="Search by name, institution, or expertise..."
+            placeholder="Search name, institution, specialty..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full rounded-lg border border-zinc-300 bg-white py-2 pl-10 pr-4 text-sm placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
             className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
             <option value="all">All types ({experts.length})</option>
-            {Object.entries(TYPE_CONFIG).map(([key, config]) => (
-              <option key={key} value={key}>
-                {config.label} ({typeCounts[key] || 0})
-              </option>
-            ))}
+            {Object.entries(TYPE_CONFIG).map(([key, config]) =>
+              typeCounts[key] ? (
+                <option key={key} value={key}>
+                  {config.label} ({typeCounts[key]})
+                </option>
+              ) : null
+            )}
           </select>
 
           <select
@@ -219,6 +288,19 @@ export default function ExpertDirectory({
             <option value="all">All priorities</option>
             <option value="high">High priority</option>
             <option value="normal">Normal priority</option>
+          </select>
+
+          <select
+            value={countryFilter}
+            onChange={(e) => setCountryFilter(e.target.value)}
+            className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="all">All countries</option>
+            {countries.map(([country, count]) => (
+              <option key={country} value={country}>
+                {country} ({count})
+              </option>
+            ))}
           </select>
         </div>
       </div>
@@ -235,8 +317,11 @@ export default function ExpertDirectory({
               <th className="px-4 py-3">
                 <SortHeader label="Name" sortKey="name" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
               </th>
-              <th className="px-4 py-3 hidden sm:table-cell">
+              <th className="px-4 py-3 hidden md:table-cell">
                 <SortHeader label="Institution" sortKey="institution" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
+              </th>
+              <th className="px-4 py-3 hidden lg:table-cell">
+                <SortHeader label="Country" sortKey="country" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
               </th>
               <th className="px-4 py-3">
                 <SortHeader label="Type" sortKey="type" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
@@ -253,15 +338,24 @@ export default function ExpertDirectory({
                 <tr
                   key={expert.id}
                   className="group border-b border-zinc-100 last:border-0 hover:bg-blue-50/40 cursor-pointer"
-                  onClick={() => setExpandedId(isExpanded ? null : expert.id)}
+                  onClick={() =>
+                    setExpandedId(isExpanded ? null : expert.id)
+                  }
                 >
-                  <td className="px-4 py-3 align-top" colSpan={isExpanded ? 4 : 1}>
-                    <div className="font-medium text-zinc-900">{expert.name}</div>
+                  <td
+                    className="px-4 py-3 align-top"
+                    colSpan={isExpanded ? 5 : 1}
+                  >
+                    <div className="font-medium text-zinc-900">
+                      {expert.name}
+                    </div>
                     {!isExpanded && (
-                      <div className="text-xs text-zinc-400 sm:hidden">{expert.institution}</div>
+                      <div className="text-xs text-zinc-400 md:hidden">
+                        {expert.institution}
+                      </div>
                     )}
                     {isExpanded && (
-                      <div className="mt-2 space-y-2 text-zinc-600 text-sm pb-1">
+                      <div className="mt-2 space-y-1.5 text-sm text-zinc-600 pb-1">
                         <div className="flex gap-2 items-center flex-wrap">
                           <TypeBadge type={expert.type} />
                           {expert.priority === "high" && (
@@ -271,36 +365,51 @@ export default function ExpertDirectory({
                             </span>
                           )}
                         </div>
-                        {expert.institution && (
-                          <p><span className="font-medium text-zinc-500">Institution:</span> {expert.institution}</p>
-                        )}
-                        {expert.expertise && (
-                          <p><span className="font-medium text-zinc-500">Expertise:</span> {expert.expertise}</p>
-                        )}
-                        {expert.paperTitle && (
+                        <p>
+                          <span className="font-medium text-zinc-500">Institution:</span>{" "}
+                          {expert.institution}
+                          {expert.country && ` — ${expert.country}`}
+                        </p>
+                        {expert.specialty && (
                           <p>
-                            <span className="font-medium text-zinc-500">Key paper:</span>{" "}
-                            <span className="italic">{expert.paperTitle}</span>
-                            {expert.journal && <span className="text-zinc-400"> — {expert.journal}</span>}
+                            <span className="font-medium text-zinc-500">Specialty:</span>{" "}
+                            {expert.specialty}
+                          </p>
+                        )}
+                        {expert.researchTopic && expert.researchTopic !== expert.specialty && (
+                          <p>
+                            <span className="font-medium text-zinc-500">Research:</span>{" "}
+                            {expert.researchTopic}
                           </p>
                         )}
                         <p>
                           <span className="font-medium text-zinc-500">Email:</span>{" "}
-                          <a
-                            href={`mailto:${expert.email}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="text-blue-600 hover:text-blue-800 underline underline-offset-2"
-                          >
-                            {expert.email}
-                          </a>
+                          {expert.email ? (
+                            <>
+                              <a
+                                href={`mailto:${expert.email}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-blue-600 hover:text-blue-800 underline underline-offset-2"
+                              >
+                                {expert.email}
+                              </a>
+                              {" "}
+                              <EmailStatus status={expert.emailStatus} />
+                            </>
+                          ) : (
+                            <span className="text-zinc-400 italic">Not available</span>
+                          )}
                         </p>
                       </div>
                     )}
                   </td>
                   {!isExpanded && (
                     <>
-                      <td className="px-4 py-3 text-zinc-600 hidden sm:table-cell align-top">
-                        {expert.institution || "—"}
+                      <td className="px-4 py-3 text-zinc-600 hidden md:table-cell align-top">
+                        {expert.institution || "\u2014"}
+                      </td>
+                      <td className="px-4 py-3 text-zinc-600 hidden lg:table-cell align-top">
+                        {expert.country || "\u2014"}
                       </td>
                       <td className="px-4 py-3 align-top">
                         <TypeBadge type={expert.type} />
@@ -312,7 +421,9 @@ export default function ExpertDirectory({
                             High
                           </span>
                         ) : (
-                          <span className="text-xs text-zinc-400">Normal</span>
+                          <span className="text-xs text-zinc-400">
+                            Normal
+                          </span>
                         )}
                       </td>
                     </>
@@ -334,6 +445,7 @@ export default function ExpertDirectory({
               setSearch("");
               setTypeFilter("all");
               setPriorityFilter("all");
+              setCountryFilter("all");
             }}
             className="mt-2 text-sm font-medium text-blue-600 hover:text-blue-800 cursor-pointer"
           >
