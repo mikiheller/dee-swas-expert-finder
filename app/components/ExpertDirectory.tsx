@@ -47,85 +47,40 @@ function TypeBadge({ type }: { type: string }) {
   };
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${config.color} ${config.bg}`}
+      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${config.color} ${config.bg}`}
     >
       {config.label}
     </span>
   );
 }
 
-function PriorityIndicator({ priority }: { priority: string }) {
-  if (priority === "high") {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-red-50 border border-red-200 px-2.5 py-0.5 text-xs font-medium text-red-800">
-        <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
-        High Priority
-      </span>
-    );
-  }
-  return null;
-}
+type SortKey = "name" | "institution" | "type" | "priority";
+type SortDir = "asc" | "desc";
 
-function ExpertCard({ expert }: { expert: Expert }) {
-  const [expanded, setExpanded] = useState(false);
-
+function SortHeader({
+  label,
+  sortKey,
+  currentSort,
+  currentDir,
+  onSort,
+}: {
+  label: string;
+  sortKey: SortKey;
+  currentSort: SortKey;
+  currentDir: SortDir;
+  onSort: (key: SortKey) => void;
+}) {
+  const active = currentSort === sortKey;
   return (
-    <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-5 shadow-sm transition-shadow hover:shadow-md">
-      <div className="flex flex-col gap-3">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <h3 className="text-lg font-semibold text-[var(--foreground)] leading-tight">
-              {expert.name}
-            </h3>
-            {expert.institution && (
-              <p className="mt-0.5 text-sm text-[var(--muted)]">
-                {expert.institution}
-              </p>
-            )}
-          </div>
-          <div className="flex flex-shrink-0 flex-wrap items-center gap-1.5">
-            <PriorityIndicator priority={expert.priority} />
-            <TypeBadge type={expert.type} />
-          </div>
-        </div>
-
-        {expert.expertise && (
-          <p className="text-sm leading-relaxed text-zinc-700">
-            {expert.expertise}
-          </p>
-        )}
-
-        {expert.paperTitle && (
-          <div className="rounded-lg bg-zinc-50 px-3 py-2 text-sm">
-            <span className="font-medium text-zinc-600">Key paper: </span>
-            <span className="text-zinc-800 italic">{expert.paperTitle}</span>
-            {expert.journal && (
-              <span className="text-zinc-500"> — {expert.journal}</span>
-            )}
-          </div>
-        )}
-
-        <div className="flex items-center gap-3 pt-1">
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors cursor-pointer"
-          >
-            {expanded ? "Hide contact" : "Show contact"}
-          </button>
-        </div>
-
-        {expanded && (
-          <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm">
-            <a
-              href={`mailto:${expert.email}`}
-              className="text-blue-600 hover:text-blue-800 underline underline-offset-2"
-            >
-              {expert.email}
-            </a>
-          </div>
-        )}
-      </div>
-    </div>
+    <button
+      onClick={() => onSort(sortKey)}
+      className="group inline-flex items-center gap-1 font-semibold cursor-pointer"
+    >
+      {label}
+      <span className={active ? "text-zinc-700" : "text-zinc-300 group-hover:text-zinc-400"}>
+        {active && currentDir === "desc" ? "\u2193" : "\u2191"}
+      </span>
+    </button>
   );
 }
 
@@ -137,6 +92,9 @@ export default function ExpertDirectory({
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [sortKey, setSortKey] = useState<SortKey>("priority");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const typeCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -146,8 +104,17 @@ export default function ExpertDirectory({
     return counts;
   }, [experts]);
 
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
+
   const filtered = useMemo(() => {
-    return experts.filter((e) => {
+    const list = experts.filter((e) => {
       if (typeFilter !== "all" && e.type !== typeFilter) return false;
       if (priorityFilter !== "all" && e.priority !== priorityFilter)
         return false;
@@ -162,23 +129,51 @@ export default function ExpertDirectory({
       }
       return true;
     });
-  }, [experts, search, typeFilter, priorityFilter]);
+
+    const priorityOrder: Record<string, number> = { high: 0, normal: 1 };
+    const typeOrder: Record<string, number> = {
+      advisory_board: 0,
+      epileptologist: 1,
+      neurogeneticist: 2,
+      researcher: 3,
+    };
+
+    list.sort((a, b) => {
+      let cmp = 0;
+      switch (sortKey) {
+        case "name":
+          cmp = a.name.localeCompare(b.name);
+          break;
+        case "institution":
+          cmp = a.institution.localeCompare(b.institution);
+          break;
+        case "type":
+          cmp = (typeOrder[a.type] ?? 99) - (typeOrder[b.type] ?? 99);
+          break;
+        case "priority":
+          cmp = (priorityOrder[a.priority] ?? 99) - (priorityOrder[b.priority] ?? 99);
+          break;
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+
+    return list;
+  }, [experts, search, typeFilter, priorityFilter, sortKey, sortDir]);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-      <header className="mb-10">
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <header className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight text-[var(--foreground)] sm:text-4xl">
           DEE-SWAS Expert Finder
         </h1>
-        <p className="mt-3 max-w-2xl text-base leading-relaxed text-[var(--muted)]">
-          {experts.length} specialists in DEE-SWAS, SYNGAP1, and ESES/CSWS —
-          researchers, epileptologists, neurogeneticists, and advisory board
-          members who may be able to help.
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--muted)]">
+          {experts.length} specialists in DEE-SWAS, SYNGAP1, and ESES/CSWS.
+          Click any row to see details.
         </p>
       </header>
 
       {/* Filters */}
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
           <svg
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"
@@ -198,7 +193,7 @@ export default function ExpertDirectory({
             placeholder="Search by name, institution, or expertise..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border border-zinc-300 bg-white py-2.5 pl-10 pr-4 text-sm placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-full rounded-lg border border-zinc-300 bg-white py-2 pl-10 pr-4 text-sm placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
         </div>
 
@@ -206,7 +201,7 @@ export default function ExpertDirectory({
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
             <option value="all">All types ({experts.length})</option>
             {Object.entries(TYPE_CONFIG).map(([key, config]) => (
@@ -219,7 +214,7 @@ export default function ExpertDirectory({
           <select
             value={priorityFilter}
             onChange={(e) => setPriorityFilter(e.target.value)}
-            className="rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
             <option value="all">All priorities</option>
             <option value="high">High priority</option>
@@ -228,16 +223,105 @@ export default function ExpertDirectory({
         </div>
       </div>
 
-      {/* Results count */}
-      <p className="mb-4 text-sm text-[var(--muted)]">
+      <p className="mb-3 text-xs text-[var(--muted)]">
         Showing {filtered.length} of {experts.length} experts
       </p>
 
-      {/* Expert grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {filtered.map((expert) => (
-          <ExpertCard key={expert.id} expert={expert} />
-        ))}
+      {/* Table */}
+      <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white shadow-sm">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-zinc-200 bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">
+              <th className="px-4 py-3">
+                <SortHeader label="Name" sortKey="name" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
+              </th>
+              <th className="px-4 py-3 hidden sm:table-cell">
+                <SortHeader label="Institution" sortKey="institution" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
+              </th>
+              <th className="px-4 py-3">
+                <SortHeader label="Type" sortKey="type" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
+              </th>
+              <th className="px-4 py-3">
+                <SortHeader label="Priority" sortKey="priority" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((expert) => {
+              const isExpanded = expandedId === expert.id;
+              return (
+                <tr
+                  key={expert.id}
+                  className="group border-b border-zinc-100 last:border-0 hover:bg-blue-50/40 cursor-pointer"
+                  onClick={() => setExpandedId(isExpanded ? null : expert.id)}
+                >
+                  <td className="px-4 py-3 align-top" colSpan={isExpanded ? 4 : 1}>
+                    <div className="font-medium text-zinc-900">{expert.name}</div>
+                    {!isExpanded && (
+                      <div className="text-xs text-zinc-400 sm:hidden">{expert.institution}</div>
+                    )}
+                    {isExpanded && (
+                      <div className="mt-2 space-y-2 text-zinc-600 text-sm pb-1">
+                        <div className="flex gap-2 items-center flex-wrap">
+                          <TypeBadge type={expert.type} />
+                          {expert.priority === "high" && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-red-50 border border-red-200 px-2 py-0.5 text-xs font-medium text-red-800">
+                              <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                              High Priority
+                            </span>
+                          )}
+                        </div>
+                        {expert.institution && (
+                          <p><span className="font-medium text-zinc-500">Institution:</span> {expert.institution}</p>
+                        )}
+                        {expert.expertise && (
+                          <p><span className="font-medium text-zinc-500">Expertise:</span> {expert.expertise}</p>
+                        )}
+                        {expert.paperTitle && (
+                          <p>
+                            <span className="font-medium text-zinc-500">Key paper:</span>{" "}
+                            <span className="italic">{expert.paperTitle}</span>
+                            {expert.journal && <span className="text-zinc-400"> — {expert.journal}</span>}
+                          </p>
+                        )}
+                        <p>
+                          <span className="font-medium text-zinc-500">Email:</span>{" "}
+                          <a
+                            href={`mailto:${expert.email}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-blue-600 hover:text-blue-800 underline underline-offset-2"
+                          >
+                            {expert.email}
+                          </a>
+                        </p>
+                      </div>
+                    )}
+                  </td>
+                  {!isExpanded && (
+                    <>
+                      <td className="px-4 py-3 text-zinc-600 hidden sm:table-cell align-top">
+                        {expert.institution || "—"}
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <TypeBadge type={expert.type} />
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        {expert.priority === "high" ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-red-700">
+                            <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                            High
+                          </span>
+                        ) : (
+                          <span className="text-xs text-zinc-400">Normal</span>
+                        )}
+                      </td>
+                    </>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
 
       {filtered.length === 0 && (
@@ -258,7 +342,7 @@ export default function ExpertDirectory({
         </div>
       )}
 
-      <footer className="mt-16 border-t border-zinc-200 pt-6 text-center text-xs text-zinc-400">
+      <footer className="mt-12 border-t border-zinc-200 pt-6 text-center text-xs text-zinc-400">
         Expert data compiled by Bryan Hong. For the Hong family.
       </footer>
     </div>
